@@ -1,7 +1,8 @@
 <script>
-	import { json } from '@sveltejs/kit';
 	import { onMount } from 'svelte';
 	import { catURL, jobsURL } from './fetchJobs';
+
+	const DEFAULT_IMG_URL = 'https://app.careerservice.polimi.it/upload/immagine_default_piccola.png';
 
 	onMount(async () => {
 		const catRes = await fetch(catURL);
@@ -23,6 +24,24 @@
 			if (jobsRes.status === 200) {
 				const { data } = await jobsRes.json();
 				jobs = data.pages.flat();
+				jobs = jobs.map((job) => {
+					let loc = job.location.match(/(.*?)\((.*?)\)/);
+					return {
+						id: job.id,
+						date: job.date,
+						job: job.name.trim(),
+						pictureUrl: job.pictureUrl !== DEFAULT_IMG_URL ? job.pictureUrl : null,
+						company: job.companyName.trim(),
+						type: job.announcementType,
+						city: loc[1] || 'N/A',
+						province: loc[2].length > 1 ? loc[2] : 'N/A',
+						numberOfApplicants: job.stored
+					};
+				});
+				jobs.forEach((job) => {
+					cities.add(job.city);
+					provinces.add(job.province);
+				});
 			}
 		}
 	}
@@ -31,10 +50,8 @@
 	let selectedCat = '';
 	let categories = [];
 	let jobs = [];
-
-	let sortJobNameAsc = false;
-	let sortCompanyAsc = false;
-	let sortLocationAsc = false;
+	let cities = new Set();
+	let provinces = new Set();
 
 	function compareString(a, b) {
 		a = a.toUpperCase();
@@ -44,25 +61,12 @@
 		return 0;
 	}
 
-	function sortByJob() {
-		sortJobNameAsc = !sortJobNameAsc;
-		jobs = jobs.sort((a, b) => compareString(a.name, b.name));
-		if (!sortJobNameAsc) jobs = jobs.reverse();
-		console.log(jobs);
-	}
+	let sortState = {};
 
-	function sortByCompany() {
-		sortCompanyAsc = !sortCompanyAsc;
-		jobs = jobs.sort((a, b) => compareString(a.companyName, b.companyName));
-		if (!sortCompanyAsc) jobs = jobs.reverse();
-		console.log(jobs);
-	}
-
-	function sortByLocation() {
-		sortLocationAsc = !sortLocationAsc;
-		jobs = jobs.sort((a, b) => compareString(a.location, b.location));
-		if (!sortLocationAsc) jobs = jobs.reverse();
-		console.log(jobs);
+	function sortBy(attr) {
+		sortState[attr] = !sortState[attr];
+		jobs = jobs.sort((a, b) => compareString(a[attr], b[attr]));
+		if (!sortState[attr]) jobs = jobs.reverse();
 	}
 </script>
 
@@ -79,24 +83,39 @@
 <p>Entries: {jobs.length}</p>
 <table class="jobs">
 	<tr class="job-header">
-		<th on:click={() => sortByJob()}>
-			<span>{sortJobNameAsc ? '▲' : '▼'}</span>
+		<th on:click={() => sortBy('job')}>
+			<span>{sortState['job'] ? '▲' : '▼'}</span>
 			Job
 		</th>
-		<th on:click={() => sortByCompany()}>
-			<span>{sortCompanyAsc ? '▲' : '▼'}</span>
+		<th on:click={() => sortBy('company')}>
+			<span>{sortState['company'] ? '▲' : '▼'}</span>
 			Company
 		</th>
-		<th on:click={() => sortByLocation()}>
-			<span>{sortLocationAsc ? '▲' : '▼'}</span>
-			Location
+		<th on:click={() => sortBy('type')}>
+			<span>{sortState['type'] ? '▲' : '▼'}</span>
+			Type</th
+		>
+		<th on:click={() => sortBy('city')}>
+			<span>{sortState['city'] ? '▲' : '▼'}</span>
+			City
+		</th>
+		<th on:click={() => sortBy('province')}>
+			<span>{sortState['province'] ? '▲' : '▼'}</span>
+			Province/State
 		</th>
 	</tr>
 	{#each jobs as job}
 		<tr class="job">
-			<td>{job.name}</td>
-			<td>{job.companyName}</td>
-			<td>{job.location}</td>
+			<td>{job.job}</td>
+			<td>
+				{#if job.pictureUrl}
+					<img src={job.pictureUrl} alt="Logo of {job.company}" />
+				{/if}
+				{job.company}</td
+			>
+			<td>{job.type}</td>
+			<td>{job.city}</td>
+			<td>{job.province}</td>
 		</tr>
 	{/each}
 </table>
@@ -113,5 +132,9 @@
 	td {
 		border-spacing: 0;
 		border: 1px solid black;
+	}
+
+	table td {
+		max-width: 20em;
 	}
 </style>
